@@ -14,7 +14,6 @@
 
 package org.casbin.adapter;
 
-import dev.failsafe.ExecutionContext;
 import dev.failsafe.Failsafe;
 import dev.failsafe.RetryPolicy;
 import org.apache.commons.collections4.CollectionUtils;
@@ -49,6 +48,10 @@ class CasbinRule {
 /**
  * JDBCAdapter is the JDBC adapter for jCasbin.
  * It can load policy from JDBC supported database or save policy to it.
+ *
+ * <p>Connections are obtained from the DataSource per operation and released immediately
+ * via try-with-resources. This enables connection pooling when a pooled DataSource
+ * (e.g., HikariCP, Apache DBCP) is provided.</p>
  */
 abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapter {
     protected static final String DEFAULT_TABLE_NAME = "casbin_rule";
@@ -59,7 +62,6 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
     protected String tableName;
     protected boolean removePolicyFailed;
     private final int batchSize = 1000;
-    protected Connection conn;
     protected RetryPolicy<Object> retryPolicy;
 
     /**
@@ -96,55 +98,55 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
             .withDelay(Duration.ofSeconds(1))
             .withMaxRetries(_DEFAULT_CONNECTION_TRIES)
             .build();
-        conn = dataSource.getConnection();
         if (autoCreateTable) {
             migrate();
         }
     }
 
     protected void migrate() throws SQLException {
-        Statement stmt = conn.createStatement();
-        String sql = renderActualSql("CREATE TABLE IF NOT EXISTS casbin_rule(id int NOT NULL PRIMARY KEY auto_increment, ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
-        String productName = conn.getMetaData().getDatabaseProductName();
+        try (Connection conn = dataSource.getConnection();
+            Statement stmt = conn.createStatement()) {
+            String sql = renderActualSql("CREATE TABLE IF NOT EXISTS casbin_rule(id int NOT NULL PRIMARY KEY auto_increment, ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
+            String productName = conn.getMetaData().getDatabaseProductName();
 
-        switch (productName) {
-            case "MySQL":
-                String hasTableSql = renderActualSql("SHOW TABLES LIKE 'casbin_rule';");
-                ResultSet rs = stmt.executeQuery(hasTableSql);
-                if (rs.next()) {
-                    return;
-                }
-                break;
-            case "Oracle":
-                sql = renderActualSql("declare begin execute immediate 'CREATE TABLE CASBIN_RULE(id NUMBER(5, 0) not NULL primary key, ptype VARCHAR(100) not NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))'; " +
+            switch (productName) {
+                case "MySQL":
+                    String hasTableSql = renderActualSql("SHOW TABLES LIKE 'casbin_rule';");
+                    ResultSet rs = stmt.executeQuery(hasTableSql);
+                    if (rs.next()) {
+                        return;
+                    }
+                    break;
+                case "Oracle":
+                    sql = renderActualSql("declare begin execute immediate 'CREATE TABLE CASBIN_RULE(id NUMBER(5, 0) not NULL primary key, ptype VARCHAR(100) not NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))'; " +
                         "exception when others then " +
                         "if SQLCODE = -955 then " +
                         "null; " +
                         "else raise; " +
                         "end if; " +
                         "end;");
-                break;
-            case "Microsoft SQL Server":
-                sql = renderActualSql("IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='casbin_rule' and xtype='U') CREATE TABLE casbin_rule(id int NOT NULL primary key identity(1, 1), ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
-                break;
-            case "PostgreSQL":
-                sql = renderActualSql("do $$ " +
+                    break;
+                case "Microsoft SQL Server":
+                    sql = renderActualSql("IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='casbin_rule' and xtype='U') CREATE TABLE casbin_rule(id int NOT NULL primary key identity(1, 1), ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
+                    break;
+                case "PostgreSQL":
+                    sql = renderActualSql("do $$ " +
                         "BEGIN " +
                         "IF (select count(*) from information_schema.tables where table_name = 'casbin_rule') = 0 " +
                         "THEN " +
-                        "CREATE SEQUENCE IF NOT EXISTS CASBIN_SEQUENCE START 1; "+
+                        "CREATE SEQUENCE IF NOT EXISTS CASBIN_SEQUENCE START 1; " +
                         "END IF; " +
                         "END; " +
                         "$$;");
-                break;
-            case "H2":
-                sql = renderActualSql("CREATE TABLE IF NOT EXISTS casbin_rule(id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY, ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
-                break;
-        }
+                    break;
+                case "H2":
+                    sql = renderActualSql("CREATE TABLE IF NOT EXISTS casbin_rule(id int GENERATED ALWAYS AS IDENTITY PRIMARY KEY, ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
+                    break;
+            }
 
-        stmt.executeUpdate(sql);
-        if ("Oracle".equals(productName)) {
-            sql = renderActualSql("declare " +
+            stmt.executeUpdate(sql);
+            if ("Oracle".equals(productName)) {
+                sql = renderActualSql("declare " +
                     "V_NUM number;" +
                     "BEGIN " +
                     "V_NUM := 0;  " +
@@ -154,8 +156,8 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
                     "else " +
                     "execute immediate 'CREATE SEQUENCE casbin_sequence increment by 1 start with 1 nomaxvalue nocycle nocache';" +
                     "end if;END;");
-            stmt.executeUpdate(sql);
-            sql = renderActualSql("declare " +
+                stmt.executeUpdate(sql);
+                sql = renderActualSql("declare " +
                     "V_NUM number;" +
                     "BEGIN " +
                     "V_NUM := 0;" +
@@ -171,10 +173,11 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
                     "                        end;';" +
                     "end if;" +
                     "END;");
-            stmt.executeUpdate(sql);
-        } else if ("PostgreSQL".equals(productName)) {
-            sql = renderActualSql("CREATE TABLE IF NOT EXISTS casbin_rule(id int NOT NULL PRIMARY KEY default nextval('CASBIN_SEQUENCE'::regclass), ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
-            stmt.executeUpdate(sql);
+                stmt.executeUpdate(sql);
+            } else if ("PostgreSQL".equals(productName)) {
+                sql = renderActualSql("CREATE TABLE IF NOT EXISTS casbin_rule(id int NOT NULL PRIMARY KEY default nextval('CASBIN_SEQUENCE'::regclass), ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
+                stmt.executeUpdate(sql);
+            }
         }
     }
 
@@ -209,12 +212,9 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
     @Override
     public void loadPolicy(Model model) {
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rSet = stmt.executeQuery(renderActualSql("SELECT ptype,v0,v1,v2,v3,v4,v5 FROM casbin_rule"))) {
-                ResultSetMetaData rData = rSet.getMetaData();
+            try (Connection conn = dataSource.getConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rSet = stmt.executeQuery(renderActualSql("SELECT ptype,v0,v1,v2,v3,v4,v5 FROM casbin_rule"))) {
                 while (rSet.next()) {
                     CasbinRule line = new CasbinRule();
                     line.ptype = rSet.getObject(1) == null ? "" : (String) rSet.getObject(1);
@@ -265,28 +265,27 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
         String addSql = renderActualSql("INSERT INTO casbin_rule (ptype,v0,v1,v2,v3,v4,v5) VALUES(?,?,?,?,?,?,?)");
 
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
-            conn.setAutoCommit(false);
+            try (Connection conn = dataSource.getConnection()) {
+                conn.setAutoCommit(false);
 
-            int count = 0;
+                int count = 0;
 
-            try (Statement statement = conn.createStatement(); PreparedStatement ps = conn.prepareStatement(addSql)) {
-                statement.execute(cleanSql);
-                count = saveSectionPolicyWithBatch(model, "p", ps, count);
-                count = saveSectionPolicyWithBatch(model, "g", ps, count);
+                try (Statement statement = conn.createStatement(); PreparedStatement ps = conn.prepareStatement(addSql)) {
+                    statement.execute(cleanSql);
+                    count = saveSectionPolicyWithBatch(model, "p", ps, count);
+                    count = saveSectionPolicyWithBatch(model, "g", ps, count);
 
-                if (count != 0) {
-                    ps.executeBatch();
+                    if (count != 0) {
+                        ps.executeBatch();
+                    }
+
+                    conn.commit();
+                } catch (SQLException e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
                 }
-
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
             }
         });
     }
@@ -344,38 +343,37 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
 
 
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
-            conn.setAutoCommit(false);
-            int count = 0;
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                for (List<String> rule : rules) {
-                    CasbinRule line = savePolicyLine(ptype, rule);
+            try (Connection conn = dataSource.getConnection()) {
+                conn.setAutoCommit(false);
+                int count = 0;
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    for (List<String> rule : rules) {
+                        CasbinRule line = savePolicyLine(ptype, rule);
 
-                    ps.setString(1, line.ptype);
-                    ps.setString(2, line.v0);
-                    ps.setString(3, line.v1);
-                    ps.setString(4, line.v2);
-                    ps.setString(5, line.v3);
-                    ps.setString(6, line.v4);
-                    ps.setString(7, line.v5);
-                    ps.addBatch();
-                    if (++count == batchSize) {
-                        count = 0;
-                        ps.executeBatch();
-                        ps.clearBatch();
+                        ps.setString(1, line.ptype);
+                        ps.setString(2, line.v0);
+                        ps.setString(3, line.v1);
+                        ps.setString(4, line.v2);
+                        ps.setString(5, line.v3);
+                        ps.setString(6, line.v4);
+                        ps.setString(7, line.v5);
+                        ps.addBatch();
+                        if (++count == batchSize) {
+                            count = 0;
+                            ps.executeBatch();
+                            ps.clearBatch();
+                        }
                     }
+                    if (count != 0) {
+                        ps.executeBatch();
+                    }
+                    conn.commit();
+                } catch (SQLException e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
                 }
-                if (count != 0) {
-                    ps.executeBatch();
-                }
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
             }
         });
     }
@@ -390,30 +388,36 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
         }
 
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
-            String sql = renderActualSql("DELETE FROM casbin_rule WHERE ptype = ?");
-            int columnIndex = 0;
-            for (int i = 0; i < rule.size(); i++) {
-                sql = String.format("%s%s%s%s", sql, " AND v", columnIndex, " = ?");
-                columnIndex++;
-            }
-            while (columnIndex <= 5) {
-                sql = String.format("%s%s%s%s", sql, " AND v", columnIndex, " IS NULL");
-                columnIndex++;
-            }
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, ptype);
-                for (int j = 0; j < rule.size(); j++) {
-                    ps.setString(j + 2, rule.get(j));
-                }
-                int rows = ps.executeUpdate();
-                if (rows < 1 && removePolicyFailed) {
-                    throw new CasbinAdapterException(String.format("Remove policy error, remove %d rows, expect least 1 rows", rows));
-                }
+            try (Connection conn = dataSource.getConnection()) {
+                removePolicyWithConnection(conn, ptype, rule);
             }
         });
+    }
+
+    /**
+     * Internal method to remove a policy rule using a provided connection (for transactional use).
+     */
+    private void removePolicyWithConnection(Connection conn, String ptype, List<String> rule) throws SQLException {
+        String sql = renderActualSql("DELETE FROM casbin_rule WHERE ptype = ?");
+        int columnIndex = 0;
+        for (int i = 0; i < rule.size(); i++) {
+            sql = String.format("%s%s%s%s", sql, " AND v", columnIndex, " = ?");
+            columnIndex++;
+        }
+        while (columnIndex <= 5) {
+            sql = String.format("%s%s%s%s", sql, " AND v", columnIndex, " IS NULL");
+            columnIndex++;
+        }
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, ptype);
+            for (int j = 0; j < rule.size(); j++) {
+                ps.setString(j + 2, rule.get(j));
+            }
+            int rows = ps.executeUpdate();
+            if (rows < 1 && removePolicyFailed) {
+                throw new CasbinAdapterException(String.format("Remove policy error, remove %d rows, expect least 1 rows", rows));
+            }
+        }
     }
 
     @Override
@@ -423,20 +427,19 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
         }
 
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
-            conn.setAutoCommit(false);
-            try {
-                for (List<String> rule : rules) {
-                    removePolicy(sec, ptype, rule);
+            try (Connection conn = dataSource.getConnection()) {
+                conn.setAutoCommit(false);
+                try {
+                    for (List<String> rule : rules) {
+                        removePolicyWithConnection(conn, ptype, rule);
+                    }
+                    conn.commit();
+                } catch (SQLException e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
                 }
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
             }
         });
     }
@@ -452,16 +455,14 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
         }
 
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
             String sql = renderActualSql("DELETE FROM casbin_rule WHERE ptype = ?");
             int columnIndex = fieldIndex;
             for (int i = 0; i < values.size(); i++, columnIndex++) {
                 if (Objects.equals(values.get(i), "")) continue;
                 sql = String.format("%s%s%s%s", sql, " AND v", columnIndex, " = ?");
             }
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            try (Connection conn = dataSource.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, ptype);
                 int index = 2;
                 for (String value : values) {
@@ -489,45 +490,41 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
 
 
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
-            conn.setAutoCommit(false);
-            removePolicy(sec, ptype, oldRule);
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                CasbinRule line = this.savePolicyLine(ptype, newRule);
+            try (Connection conn = dataSource.getConnection()) {
+                conn.setAutoCommit(false);
+                try {
+                    removePolicyWithConnection(conn, ptype, oldRule);
+                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                        CasbinRule line = this.savePolicyLine(ptype, newRule);
 
-                ps.setString(1, line.ptype);
-                ps.setString(2, line.v0);
-                ps.setString(3, line.v1);
-                ps.setString(4, line.v2);
-                ps.setString(5, line.v3);
-                ps.setString(6, line.v4);
-                ps.setString(7, line.v5);
-                ps.executeUpdate();
-                conn.commit();
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
+                        ps.setString(1, line.ptype);
+                        ps.setString(2, line.v0);
+                        ps.setString(3, line.v1);
+                        ps.setString(4, line.v2);
+                        ps.setString(5, line.v3);
+                        ps.setString(6, line.v4);
+                        ps.setString(7, line.v5);
+                        ps.executeUpdate();
+                    }
+                    conn.commit();
+                } catch (SQLException e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
+                }
             }
         });
     }
 
     /**
-     * Close the Connection.
+     * Close the adapter. With connection-per-operation, this is a no-op.
+     * If the underlying DataSource is a pool (e.g., HikariCP), close it there.
+     *
+     * @deprecated Connections are no longer held; close the DataSource directly if needed.
      */
     public void close() throws SQLException {
-        conn.close();
-    }
-
-    protected void retry(ExecutionContext<Void> ctx) throws SQLException {
-        if (ctx.getExecutionCount() < _DEFAULT_CONNECTION_TRIES) {
-            conn = dataSource.getConnection();
-        } else {
-            throw new Error(ctx.getLastFailure());
-        }
+        // No-op: connections are obtained and released per operation.
     }
 
     protected String renderActualSql(String sql) {

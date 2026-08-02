@@ -124,11 +124,9 @@ public class JDBCAdapter extends JDBCBaseAdapter implements FilteredAdapter {
      */
     private void loadFilteredPolicyFile(Model model, Filter filter, Helper.loadPolicyLineHandler<String, Model> handler) throws CasbinAdapterException {
         Failsafe.with(retryPolicy).run(ctx -> {
-            if (ctx.isRetry()) {
-                retry(ctx);
-            }
-            try (Statement stmt = conn.createStatement();
-                 ResultSet rSet = stmt.executeQuery(renderActualSql("SELECT * FROM casbin_rule"))) {
+            try (Connection conn = dataSource.getConnection();
+                Statement stmt = conn.createStatement();
+                ResultSet rSet = stmt.executeQuery(renderActualSql("SELECT * FROM casbin_rule"))) {
                 ResultSetMetaData rData = rSet.getMetaData();
                 while (rSet.next()) {
                     CasbinRule line = new CasbinRule();
