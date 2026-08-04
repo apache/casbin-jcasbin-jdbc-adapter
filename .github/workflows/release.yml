@@ -1,0 +1,185 @@
+name: Release
+
+# Releases are cut manually by pushing a git tag:
+#   v1.4.0-rc1 -> GitHub pre-release only (source package for the Apache vote)
+#   v1.4.0     -> GitHub release + publish to Maven Central
+#
+# The release manager downloads the source package from the release, signs it
+# locally, and uses it for voting. This workflow does not sign anything.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Prepare Release
+    if: ${{ github.repository == 'apache/casbin-jcasbin-jdbc-adapter' }}
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      maven_version: ${{ steps.meta.outputs.maven_version }}
+      basename: ${{ steps.meta.outputs.basename }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      previous_tag: ${{ steps.meta.outputs.previous_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute release metadata
+        id: meta
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+
+          if [[ "${TAG_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            PRERELEASE=false
+          elif [[ "${TAG_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc[0-9]+$ ]]; then
+            PRERELEASE=true
+          else
+            echo "Unsupported release tag: ${TAG_NAME}. Use v1.2.3 or v1.2.3-rc1." >&2
+            exit 1
+          fi
+
+          VERSION="${TAG_NAME#v}"
+          BASE_VERSION="${VERSION%%-rc*}"
+          BASENAME="apache-casbin-jcasbin-jdbc-adapter-${VERSION}-incubating-src"
+          PREVIOUS_TAG="$(
+            {
+              git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$'
+              echo "v${BASE_VERSION}"
+            } |
+              sort -V -u |
+              awk -v current="v${BASE_VERSION}" '
+                $0 == current {
+                  print previous
+                  exit
+                }
+                {
+                  previous = $0
+                }
+              '
+          )"
+
+          echo "tag=${TAG_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "maven_version=${BASE_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "basename=${BASENAME}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${PRERELEASE}" >> "${GITHUB_OUTPUT}"
+          echo "previous_tag=${PREVIOUS_TAG}" >> "${GITHUB_OUTPUT}"
+
+          echo "Tag: ${TAG_NAME} (pre-release: ${PRERELEASE})"
+          echo "Source package: ${BASENAME}.tar.gz"
+
+  github-release:
+    name: GitHub Release
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        env:
+          CURRENT_TAG: ${{ needs.prepare.outputs.tag }}
+          CURRENT_VERSION: ${{ needs.prepare.outputs.version }}
+          PREVIOUS_TAG: ${{ needs.prepare.outputs.previous_tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+        run: |
+          RELEASE_DATE="$(date -u +%F)"
+          RANGE="${CURRENT_TAG}"
+
+          if [ -n "${PREVIOUS_TAG}" ]; then
+            RANGE="${PREVIOUS_TAG}..${CURRENT_TAG}"
+          fi
+
+          FEATURES="$(git log --pretty=format:'%s (%h)' "${RANGE}" | grep -Ei '^(feat)(\(.+\))?: ' || true)"
+          FIXES="$(git log --pretty=format:'%s (%h)' "${RANGE}" | grep -Ei '^(fix)(\(.+\))?: ' || true)"
+          DOCS="$(git log --pretty=format:'%s (%h)' "${RANGE}" | grep -Ei '^(docs?|doc)(\(.+\))?: ' || true)"
+
+          {
+            if [ -n "${PREVIOUS_TAG}" ]; then
+              echo "# [${CURRENT_VERSION}](https://github.com/${GITHUB_REPOSITORY}/compare/${PREVIOUS_TAG}...${CURRENT_TAG}) (${RELEASE_DATE})"
+            else
+              echo "# ${CURRENT_VERSION} (${RELEASE_DATE})"
+            fi
+            echo
+
+            if [ "${PRERELEASE}" = "true" ]; then
+              echo "Release candidate for the Apache voting process. This is not a released version."
+              echo
+            fi
+
+            if [ -n "${PREVIOUS_TAG}" ]; then
+              echo "Changes since ${PREVIOUS_TAG}."
+              echo
+            fi
+
+            if [ -n "${FEATURES}" ]; then
+              echo "## Features"
+              echo
+              printf '%s\n' "${FEATURES}" | sed 's/^/- /'
+              echo
+            fi
+
+            if [ -n "${FIXES}" ]; then
+              echo "## Fixes"
+              echo
+              printf '%s\n' "${FIXES}" | sed 's/^/- /'
+              echo
+            fi
+
+            if [ -n "${DOCS}" ]; then
+              echo "## Docs"
+              echo
+              printf '%s\n' "${DOCS}" | sed 's/^/- /'
+              echo
+            fi
+
+            if [ -z "${FEATURES}${FIXES}${DOCS}" ]; then
+              echo "## Notes"
+              echo
+              echo "- No feat/fix/doc commits were found in this release range."
+            fi
+          } > RELEASE_NOTES.md
+
+      - name: Create source package
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          BASENAME: ${{ needs.prepare.outputs.basename }}
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="${BASENAME}/" -o "dist/${BASENAME}.tar.gz" "${TAG}"
+          cd dist
+          sha512sum "${BASENAME}.tar.gz" > "${BASENAME}.tar.gz.sha512"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Casbin JDBC Adapter ${{ needs.prepare.outputs.tag }}
+          body_path: RELEASE_NOTES.md
+          draft: false
+          prerelease: ${{ needs.prepare.outputs.prerelease == 'true' }}
+          files: |
+            dist/${{ needs.prepare.outputs.basename }}.tar.gz
+            dist/${{ needs.prepare.outputs.basename }}.tar.gz.sha512
+
+  publish-maven:
+    name: Publish Maven
+    needs:
+      - prepare
+      - github-release
+    if: ${{ needs.prepare.outputs.prerelease == 'false' }}
+    uses: ./.github/workflows/maven-publish.yml
+    with:
+      maven_version: ${{ needs.prepare.outputs.maven_version }}
+    secrets: inherit
