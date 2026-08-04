@@ -1,0 +1,155 @@
+name: release
+
+# Releases are triggered manually, by pushing a git tag. There is no automatic
+# release on merge/commit: as an Apache (incubating) project, every release must
+# pass a formal vote before it can be published.
+#
+#   v1.4.0-rc1  -> GitHub *pre-release* only (the candidate used for voting)
+#   v1.4.0      -> GitHub release + publish to Maven Central
+#
+# In both cases the release carries the source package that the release manager
+# downloads, signs locally (.asc / .sha512) and uploads to dist.apache.org for
+# the vote. This workflow deliberately does not touch anything on the Apache
+# side - no signing, no svn, no re-upload of signed artifacts.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+            echo "::error::Tag '$TAG' has an unexpected format. Use v<x.y.z> (e.g. v1.4.0) or v<x.y.z>-rc<n> (e.g. v1.4.0-rc1)."
+            exit 1
+          fi
+
+          BASE="${TAG#v}"           # 1.4.0  |  1.4.0-rc1
+          VERSION="${BASE%%-rc*}"   # 1.4.0
+          if [[ "$BASE" == *-rc* ]]; then
+            IS_RC=true
+            RC="${BASE##*-}"        # rc1
+          else
+            IS_RC=false
+            RC=""
+          fi
+
+          # The Maven coordinates keep the plain version - the "-incubating"
+          # suffix is only carried by the Apache source package, which is the
+          # artifact the incubator actually votes on.
+          #
+          # Apache source package naming: apache-<project>-<version>-src.tar.gz
+          # The RC number is not part of the file name, it only appears in the
+          # vote thread and in the dist.apache.org staging path.
+          SRC_NAME="apache-casbin-jdbc-adapter-${VERSION}-incubating-src"
+
+          {
+            echo "tag=$TAG"
+            echo "is_rc=$IS_RC"
+            echo "rc=$RC"
+            echo "version=$VERSION"
+            echo "src_name=$SRC_NAME"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Tag=$TAG version=$VERSION is_rc=$IS_RC ${RC:+rc=$RC}"
+
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '8'
+          server-id: ossrh
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+
+      - name: Stamp the release version into the POM
+        run: mvn -B versions:set -DnewVersion=${{ steps.version.outputs.version }} -DgenerateBackupPoms=false
+
+      - name: Build the source package
+        env:
+          SRC_NAME: ${{ steps.version.outputs.src_name }}
+        run: |
+          set -euo pipefail
+          # The file list comes from git, so the package holds exactly the
+          # tracked sources of the tag - no build output, no VCS metadata.
+          # The contents are read from the working tree, so the POM already
+          # carries the release version and the package builds as-is.
+          git ls-files -z | tar --null -T - \
+            --transform "s,^,$SRC_NAME/," \
+            -czf "$SRC_NAME.tar.gz"
+          ls -l "$SRC_NAME.tar.gz"
+          tar -tzf "$SRC_NAME.tar.gz"
+
+      # Only a passed vote may be published, so release candidates never reach
+      # the package registry.
+      - name: Publish to Maven Central
+        if: steps.version.outputs.is_rc == 'false'
+        env:
+          MAVEN_USERNAME: ${{ secrets.OSSRH_JIRA_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_JIRA_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: mvn -B clean deploy -DskipTests
+
+      - name: Write release notes
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          IS_RC: ${{ steps.version.outputs.is_rc }}
+          RC: ${{ steps.version.outputs.rc }}
+          VERSION: ${{ steps.version.outputs.version }}
+          SRC_NAME: ${{ steps.version.outputs.src_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$IS_RC" == "true" ]]; then
+            cat > release-notes.md <<EOF
+          Release candidate \`$RC\` for **$VERSION**.
+
+          This is *not* an official Apache release. It is the candidate put up for
+          the Apache Casbin (incubating) release vote, published here so the release
+          manager can download \`$SRC_NAME.tar.gz\`, sign it locally and stage it on
+          dist.apache.org. It is not published to Maven Central.
+          EOF
+          else
+            cat > release-notes.md <<EOF
+          Apache Casbin (incubating) JDBC Adapter **$VERSION**.
+
+          The source package \`$SRC_NAME.tar.gz\` is attached, and the convenience
+          binaries are published to Maven Central as \`org.casbin:jdbc-adapter:$VERSION\`.
+          EOF
+          fi
+          cat release-notes.md
+
+      - name: Publish GitHub pre-release (RC)
+        if: steps.version.outputs.is_rc == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.version.outputs.src_name }}.tar.gz" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --notes-file release-notes.md \
+            --prerelease
+
+      - name: Publish GitHub release
+        if: steps.version.outputs.is_rc == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.version.outputs.src_name }}.tar.gz" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --notes-file release-notes.md
