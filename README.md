@@ -1,8 +1,8 @@
 JDBC Adapter
 ====
 
-[![build](https://github.com/jcasbin/jdbc-adapter/actions/workflows/maven-ci.yml/badge.svg)](https://github.com/jcasbin/jdbc-adapter/actions/workflows/maven-ci.yml)
-[![codecov](https://codecov.io/gh/jcasbin/jdbc-adapter/branch/master/graph/badge.svg?token=YoXB4Wmvrb)](https://codecov.io/gh/jcasbin/jdbc-adapter)
+[![build](https://github.com/apache/casbin-jcasbin-jdbc-adapter/actions/workflows/maven-ci.yml/badge.svg)](https://github.com/apache/casbin-jcasbin-jdbc-adapter/actions/workflows/maven-ci.yml)
+[![codecov](https://codecov.io/gh/apache/casbin-jcasbin-jdbc-adapter/branch/master/graph/badge.svg?token=YoXB4Wmvrb)](https://codecov.io/gh/apache/casbin-jcasbin-jdbc-adapter)
 [![Javadocs](https://www.javadoc.io/badge/org.casbin/jdbc-adapter.svg)](https://www.javadoc.io/doc/org.casbin/jdbc-adapter)
 [![Maven Central](https://img.shields.io/maven-central/v/org.casbin/jdbc-adapter.svg)](https://mvnrepository.com/artifact/org.casbin/jdbc-adapter/latest)
 [![Discord](https://img.shields.io/discord/1022748306096537660?logo=discord&label=discord&color=5865F2)](https://discord.gg/S5UjpzGZjN)

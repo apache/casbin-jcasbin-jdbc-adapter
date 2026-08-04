@@ -10,12 +10,12 @@
 
     <name>JDBC Adapter for JCasbin</name>
     <description>Load policy from JDBC supported database or save policy to it</description>
-    <url>https://github.com/jcasbin/jdbc-adapter</url>
+    <url>https://github.com/apache/casbin-jcasbin-jdbc-adapter</url>
     <inceptionYear>2018</inceptionYear>
 
     <issueManagement>
         <system>Github</system>
-        <url>https://github.com/jcasbin/jdbc-adapter/issues</url>
+        <url>https://github.com/apache/casbin-jcasbin-jdbc-adapter/issues</url>
     </issueManagement>
 
     <parent>
@@ -31,8 +31,8 @@
         </license>
     </licenses>
     <scm>
-        <url>https://github.com/jcasbin/jdbc-adapter</url>
-        <connection>git@github.com:jcasbin/jdbc-adapter.git</connection>
+        <url>https://github.com/apache/casbin-jcasbin-jdbc-adapter</url>
+        <connection>git@github.com:apache/casbin-jcasbin-jdbc-adapter.git</connection>
         <developerConnection>https://github.com/hsluoyz</developerConnection>
     </scm>
     <developers>
