@@ -1,3 +1,15 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 name: build
 
 on: [push, pull_request]
@@ -35,7 +47,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: '0'
 
@@ -51,14 +63,18 @@ jobs:
         run: /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1,1433 -U sa -P '9G3iqmzQDw9zCXII' -Q "CREATE DATABASE casbin" -C
 
       - name: Set up JDK 1.8
-        uses: actions/setup-java@v1
+        uses: actions/setup-java@v4
         with:
-          java-version: 1.8
+          distribution: temurin
+          java-version: '8'
+
+      - name: Verify release scripts
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 
       - name: Build with Maven
-        run: mvn clean test cobertura:cobertura
+        run: mvn -B -ntp clean verify cobertura:cobertura -Dgpg.skip=true
 
       - name: Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

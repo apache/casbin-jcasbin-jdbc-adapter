@@ -26,7 +26,8 @@ public interface AdapterCreator {
 }
 
 class MySQLAdapterCreator implements AdapterCreator {
-    private String url = "jdbc:mysql://127.0.0.1:3306/casbin?serverTimezone=GMT%2B8&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true";
+    private String url = System.getenv().getOrDefault("JDBC_TEST_MYSQL_URL",
+            "jdbc:mysql://127.0.0.1:3306/casbin?serverTimezone=GMT%2B8&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true");
     private String username = "casbin_test";
     private String password = "TEST_casbin";
     private String driver = "com.mysql.cj.jdbc.Driver";
@@ -83,7 +84,8 @@ class OracleAdapterCreator implements AdapterCreator {
 }
 
 class PgAdapterCreator implements AdapterCreator {
-    private String url = "jdbc:postgresql://localhost:5432/casbin";
+    private String url = System.getenv().getOrDefault("JDBC_TEST_POSTGRES_URL",
+            "jdbc:postgresql://localhost:5432/casbin");
     private String username = "casbin_test";
     private String password = "TEST_casbin";
     private String driver = "org.postgresql.Driver";
@@ -105,7 +107,8 @@ class PgAdapterCreator implements AdapterCreator {
 }
 
 class SQLServerAdapterCreator implements AdapterCreator {
-    private String url = "jdbc:sqlserver://localhost:1433;databaseName=casbin;";
+    private String url = System.getenv().getOrDefault("JDBC_TEST_SQLSERVER_URL",
+            "jdbc:sqlserver://localhost:1433;databaseName=casbin;");
     private String username = "sa";
     private String password = "9G3iqmzQDw9zCXII";
     private String driver = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
@@ -125,4 +128,3 @@ class SQLServerAdapterCreator implements AdapterCreator {
         return new JDBCAdapter(dataSource);
     }
 }
-
