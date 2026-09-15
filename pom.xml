@@ -185,6 +185,9 @@ While incubation status is not necessarily a reflection of the completeness or s
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>2.10.4</version>
                 <configuration>
+                    <locale>en</locale>
+                    <docencoding>UTF-8</docencoding>
+                    <charset>UTF-8</charset>
                     <source>11</source>
                     <detectJavaApiLink>false</detectJavaApiLink>
                     <!-- Turn off Java 8 strict Javadoc checking -->

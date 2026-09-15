@@ -68,6 +68,8 @@ jobs:
             echo "Candidate for JDBC Adapter for JCasbin $VERSION. Not an official Apache release. Sign and stage the source archive for the applicable Apache votes." > release-notes.md
           else
             echo "JDBC Adapter for JCasbin $VERSION. Source files are the verified originals promoted to ASF distribution after the applicable votes." > release-notes.md
+            printf '\nOfficial source: https://downloads.apache.org/incubator/casbin/jdbc-adapter-%s-incubating/\n' "$VERSION" >> release-notes.md
+            printf '\nVerify downloads: https://www.apache.org/info/verification.html\n' >> release-notes.md
           fi
           printf '\n' >> release-notes.md
           cat DISCLAIMER >> release-notes.md
