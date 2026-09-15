@@ -1,19 +1,30 @@
 <!--
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements. See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership. The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License. You may obtain a copy of the License at
 
     https://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied. See the License for the
+specific language governing permissions and limitations
+under the License.
 -->
 
 JDBC Adapter
 ====
+
+Apache Casbin (Incubating) is an effort undergoing incubation at the Apache Software Foundation (ASF), sponsored by the Apache Incubator PMC.
+
+Incubation is required of all newly accepted projects until a further review indicates that the infrastructure, communications, and decision making process have stabilized in a manner consistent with other successful ASF projects.
+
+While incubation status is not necessarily a reflection of the completeness or stability of the code, it does indicate that the project has yet to be fully endorsed by the ASF.
 
 [![build](https://github.com/apache/casbin-jcasbin-jdbc-adapter/actions/workflows/maven-ci.yml/badge.svg)](https://github.com/apache/casbin-jcasbin-jdbc-adapter/actions/workflows/maven-ci.yml)
 [![codecov](https://codecov.io/gh/apache/casbin-jcasbin-jdbc-adapter/branch/master/graph/badge.svg?token=YoXB4Wmvrb)](https://codecov.io/gh/apache/casbin-jcasbin-jdbc-adapter)
@@ -50,6 +61,23 @@ For Maven:
 Since version 2.0.2, jdbc-adapter adds an ``id`` field to the database table structure by default. 
 
 If you want to upgrade to 2.0.2 - 2.2.0, you have to add the ``id`` field manually. It is recommended to add the ``id`` field. If you don't want to add the ``id`` field, please use 2.2.1+.
+
+## Oracle driver configuration
+
+Version 2.14.0 also updates JCasbin to the published 1.99.0 version, which uses
+the Apache-2.0 AviatorScript artifact instead of the older LGPL dependency.
+
+Starting with 2.14.0, the adapter does not bring in an Oracle driver as a
+transitive dependency. Oracle support in the standard JDBC adapter remains:
+applications that use Oracle must obtain a driver compatible with their Java
+and database versions from [Oracle JDBC downloads](https://www.oracle.com/database/technologies/appdev/jdbc-downloads.html),
+review its terms, and explicitly add it to their application's runtime
+classpath. Applications using other databases do not need that driver.
+
+Pass the configured Oracle `javax.sql.DataSource` to `new JDBCAdapter(dataSource)`,
+or use the driver-name/URL constructor with the driver on the classpath.
+The default build and automated MySQL/PostgreSQL/SQL Server tests do not need
+Oracle software. An Oracle database integration test is not part of this suite.
 
 ## Simple Example
 

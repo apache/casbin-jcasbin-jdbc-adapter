@@ -73,5 +73,23 @@ credentials in `AdapterCreator.java`. Set `JDBC_TEST_MYSQL_URL`,
 `JDBC_TEST_POSTGRES_URL` and `JDBC_TEST_SQLSERVER_URL` for isolated ports.
 Use dedicated empty databases; never point these tests at production data.
 For MySQL, retain the default connection URL options when changing its port.
-Test fixtures may change, so use a disposable source extraction. Oracle
-connection helpers exist, but Oracle is not part of the automated test suite.
+Test fixtures may change, so use a disposable source extraction. The default
+build does not require an Oracle driver; Oracle applications configure their
+own driver as described in README.md. Oracle is not part of the automated
+test suite.
+
+
+## Distribution review
+
+This preparation preserves the existing `org.casbin:jdbc-adapter` coordinates and the
+selected package version for consumer compatibility; the ASF source archive
+name includes `incubating`. Before an RC, record the project's disposition of
+the Incubator distribution naming guidance and any required exception. This
+compatibility choice is not evidence of IPMC approval or registry ownership.
+
+Review the incubation disclaimer in the README, package metadata where
+applicable, and generated GitHub notes. Before publication, verify the ASF
+download/verification links and that project maintainers can administer each
+registry. Track Git tag, ASF dev/release, signing/KEYS, and registry permissions
+separately. Keep actual decisions and provenance evidence with the release
+record, outside the source distribution; header text is not proof of a grant.
