@@ -128,10 +128,11 @@ While incubation status is not necessarily a reflection of the completeness or s
                         <phase>prepare-package</phase>
                         <goals><goal>copy-resources</goal></goals>
                         <configuration>
-                            <outputDirectory>${project.build.directory}/reports/apidocs/META-INF</outputDirectory>
+                            <outputDirectory>${project.build.directory}/reports/apidocs</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}</directory>
+                                    <targetPath>META-INF</targetPath>
                                     <includes>
                                         <include>LICENSE</include>
                                         <include>NOTICE</include>
@@ -140,6 +141,12 @@ While incubation status is not necessarily a reflection of the completeness or s
                                 </resource>
                                 <resource>
                                     <directory>${project.basedir}/src/javadoc-legal</directory>
+                                    <targetPath>META-INF</targetPath>
+                                    <includes><include>LICENSE</include></includes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/src/javadoc-legal</directory>
+                                    <targetPath>legal</targetPath>
                                     <includes><include>LICENSE</include></includes>
                                 </resource>
                             </resources>
@@ -200,7 +207,8 @@ While incubation status is not necessarily a reflection of the completeness or s
                     <detectJavaApiLink>false</detectJavaApiLink>
                     <doclint>none</doclint>
                     <additionalOptions>
-                        <additionalOption>--legal-notices "${project.basedir}/src/javadoc-legal"</additionalOption>
+                        <!-- Complete reviewed texts are copied by javadoc-legal-files. -->
+                        <additionalOption>--legal-notices none</additionalOption>
                         <additionalOption>--no-fonts</additionalOption>
                     </additionalOptions>
                     <tags>
