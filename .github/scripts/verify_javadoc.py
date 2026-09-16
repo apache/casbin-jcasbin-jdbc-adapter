@@ -72,7 +72,7 @@ def verify(path, root):
             if name.startswith("legal/"):
                 require(name == "legal/LICENSE", "Unexpected legal file: " + name)
                 require(not data.lstrip().startswith(b"Please see"), "Dangling license pointer")
-        page = archive.read("index.html").decode("utf-8")
+        page = archive.read("org/casbin/adapter/package-summary.html").decode("utf-8")
         require("javadoc (25" in page, "Unreviewed Javadoc generator")
         require("Incubation is required of all newly accepted projects" in page,
                 "Missing visible incubation disclaimer")

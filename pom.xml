@@ -128,7 +128,7 @@ While incubation status is not necessarily a reflection of the completeness or s
                         <phase>prepare-package</phase>
                         <goals><goal>copy-resources</goal></goals>
                         <configuration>
-                            <outputDirectory>${project.build.directory}/apidocs/META-INF</outputDirectory>
+                            <outputDirectory>${project.build.directory}/reports/apidocs/META-INF</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}</directory>
@@ -189,6 +189,7 @@ While incubation status is not necessarily a reflection of the completeness or s
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>3.12.0</version>
                 <configuration>
+                    <outputDirectory>${project.build.directory}/reports</outputDirectory>
                     <locale>en</locale>
                     <docencoding>UTF-8</docencoding>
                     <charset>UTF-8</charset>
