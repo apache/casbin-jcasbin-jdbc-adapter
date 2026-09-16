@@ -18,6 +18,8 @@
 """Check actual Javadoc assets and complete, self-contained license texts."""
 
 from pathlib import Path
+import html
+import re
 import sys
 import zipfile
 
@@ -74,8 +76,12 @@ def verify(path, root):
                 require(not data.lstrip().startswith(b"Please see"), "Dangling license pointer")
         page = archive.read("org/casbin/adapter/package-summary.html").decode("utf-8")
         require("javadoc (25" in page, "Unreviewed Javadoc generator")
-        require("Incubation is required of all newly accepted projects" in page,
-                "Missing visible incubation disclaimer")
+        normalize = lambda text: " ".join(html.unescape(re.sub(r"<[^>]+>", " ", text)).split())
+        disclaimer = normalize((root / "DISCLAIMER").read_text(encoding="utf-8"))
+        for name in names:
+            if name.startswith("org/casbin/adapter/") and name.endswith(".html"):
+                require(disclaimer in normalize(archive.read(name).decode("utf-8")),
+                        "Missing complete visible incubation disclaimer: " + name)
     print("Verified Javadoc resources and licenses: " + str(path))
 
 
