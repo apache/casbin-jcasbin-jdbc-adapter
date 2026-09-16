@@ -104,7 +104,10 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '8'
+          # The last JDK runs Maven; Javadoc selects 25 from toolchains.
+          java-version: |
+            25
+            8
           server-id: ossrh
           server-username: MAVEN_USERNAME
           server-password: MAVEN_PASSWORD
@@ -115,4 +118,7 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.OSSRH_JIRA_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_JIRA_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn -B -ntp clean deploy -DskipTests
+        run: |
+          mvn -B -ntp clean package -DskipTests -Dgpg.skip=true
+          python3 .github/scripts/verify_javadoc.py target/jdbc-adapter-*-javadoc.jar
+          mvn -B -ntp deploy -DskipTests

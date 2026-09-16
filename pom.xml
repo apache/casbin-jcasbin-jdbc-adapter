@@ -138,6 +138,10 @@ While incubation status is not necessarily a reflection of the completeness or s
                                         <include>DISCLAIMER</include>
                                     </includes>
                                 </resource>
+                                <resource>
+                                    <directory>${project.basedir}/src/javadoc-legal</directory>
+                                    <includes><include>LICENSE</include></includes>
+                                </resource>
                             </resources>
                         </configuration>
                     </execution>
@@ -183,15 +187,21 @@ While incubation status is not necessarily a reflection of the completeness or s
                 <!-- Allow attaching Javadoc during releases -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.10.4</version>
+                <version>3.12.0</version>
                 <configuration>
                     <locale>en</locale>
                     <docencoding>UTF-8</docencoding>
                     <charset>UTF-8</charset>
-                    <source>11</source>
+                    <source>8</source>
+                    <!-- Generate documentation with explicit resource licenses. -->
+                    <jdkToolchain><version>25</version></jdkToolchain>
+                    <bottom>${project.description}</bottom>
                     <detectJavaApiLink>false</detectJavaApiLink>
-                    <!-- Turn off Java 8 strict Javadoc checking -->
-                    <additionalparam>-Xdoclint:none</additionalparam>
+                    <doclint>none</doclint>
+                    <additionalOptions>
+                        <additionalOption>--legal-notices "${project.basedir}/src/javadoc-legal"</additionalOption>
+                        <additionalOption>--no-fonts</additionalOption>
+                    </additionalOptions>
                     <tags>
                         <tag>
                             <name>notnull</name>

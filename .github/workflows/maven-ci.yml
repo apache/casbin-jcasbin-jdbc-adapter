@@ -67,17 +67,23 @@ jobs:
       - name: Create database for sqlserver
         run: /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1,1433 -U sa -P '9G3iqmzQDw9zCXII' -Q "CREATE DATABASE casbin" -C
 
-      - name: Set up JDK 1.8
+      - name: Set up Java 8 and Javadoc 25
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '8'
+          # The last JDK runs Maven; Javadoc selects 25 from toolchains.
+          java-version: |
+            25
+            8
 
       - name: Verify release scripts
         run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 
       - name: Build with Maven
         run: mvn -B -ntp clean verify cobertura:cobertura -Dgpg.skip=true
+
+      - name: Verify Javadoc legal contents
+        run: python3 .github/scripts/verify_javadoc.py target/jdbc-adapter-*-javadoc.jar
 
       - name: Codecov
         uses: codecov/codecov-action@v5

@@ -65,6 +65,12 @@ for `org.casbin`, not obsolete OSSRH account credentials.
 ## Build from an extraction
 
 Use Java 8 and Maven 3.9.x with MySQL, PostgreSQL and SQL Server available.
+Install JDK 25 for documentation and register it as version 25 in Maven's
+`~/.m2/toolchains.xml`. CI uses setup-java to register both JDKs and runs Maven
+on Java 8; the compiler target remains Java 8. For a local build without a
+toolchains file, pass `-DjavadocExecutable=/path/to/jdk-25/bin/javadoc`.
+The Javadoc options intentionally fail with an old doclet instead of silently
+producing documentation with incomplete legal files.
 Run `mvn -B -ntp clean verify -Dgpg.skip=true`; the CI also runs
 `cobertura:cobertura`. Do not use `deploy` during verification.
 
@@ -93,3 +99,26 @@ download/verification links and that project maintainers can administer each
 registry. Track Git tag, ASF dev/release, signing/KEYS, and registry permissions
 separately. Keep actual decisions and provenance evidence with the release
 record, outside the source distribution; header text is not proof of a grant.
+
+
+## Generated documentation licenses
+
+Javadoc uses Maven Javadoc Plugin 3.12.0 and the JDK 25 standard doclet.
+`src/javadoc-legal/LICENSE` supplies the complete Apache-2.0, UPL-1.0 and
+jQuery/jQuery UI MIT texts in both `META-INF/LICENSE` and `legal/LICENSE`
+in the Javadoc JAR. This avoids JDK distributions whose legal files contain
+only relative pointers to files absent from a generated documentation JAR.
+Fonts and syntax highlighting are not included. Generated JavaScript, CSS
+and SVG copyright headers are preserved; none of these assets is committed
+or bundled into the source release, main JAR or sources JAR.
+
+After building, run:
+
+```sh
+python3 .github/scripts/verify_javadoc.py target/jdbc-adapter-*-javadoc.jar
+```
+
+When the JDK changes, review actual bundled asset versions and their license
+texts together; update the verifier and license template if needed. Do not
+suppress a missing-license or unexpected-resource failure. This check does
+not replace review of the exact merged source, artifacts or release votes.
