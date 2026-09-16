@@ -89,8 +89,9 @@ test suite.
 
 This preparation preserves the existing `org.casbin:jdbc-adapter` coordinates and the
 selected package version for consumer compatibility; the ASF source archive
-name includes `incubating`. Before an RC, record the project's disposition of
-the Incubator distribution naming guidance and any required exception. This
+name includes `incubating`. Review this compatibility proposal in the preparation
+PR and record the project's disposition of the Incubator distribution naming
+guidance and any required exception before adopting it for release. This
 compatibility choice is not evidence of IPMC approval or registry ownership.
 
 Review the incubation disclaimer in the README, package metadata where
