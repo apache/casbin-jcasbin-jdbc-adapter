@@ -107,6 +107,47 @@ abstract class JDBCBaseAdapter implements Adapter, BatchAdapter, UpdatableAdapte
     }
 
     protected void migrate() throws SQLException {
+        createTable();
+        createIndexes();
+    }
+
+    private void createIndexes() {
+        String[][] indexes = {
+            {"idx_casbin_rule_v0", "ptype, v0, v1"},
+            {"idx_casbin_rule_v1", "ptype, v1, v2"},
+        };
+        for (String[] index : indexes) {
+            String name = renderActualSql(index[0]);
+            try (Connection conn = dataSource.getConnection();
+                Statement stmt = conn.createStatement()) {
+                if (!hasIndex(conn, name)) {
+                    stmt.executeUpdate(renderActualSql("CREATE INDEX " + index[0] + " ON casbin_rule (" + index[1] + ")"));
+                }
+            } catch (SQLException ignored) {
+                // The indexes only speed up policy deletes, so missing privileges or a concurrent creation must not block startup.
+            }
+        }
+    }
+
+    private boolean hasIndex(Connection conn, String name) throws SQLException {
+        DatabaseMetaData metaData = conn.getMetaData();
+        String table = tableName;
+        if (metaData.storesUpperCaseIdentifiers()) {
+            table = table.toUpperCase(Locale.ROOT);
+        } else if (metaData.storesLowerCaseIdentifiers()) {
+            table = table.toLowerCase(Locale.ROOT);
+        }
+        try (ResultSet rs = metaData.getIndexInfo(conn.getCatalog(), null, table, false, true)) {
+            while (rs.next()) {
+                if (name.equalsIgnoreCase(rs.getString("INDEX_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void createTable() throws SQLException {
         try (Connection conn = dataSource.getConnection();
             Statement stmt = conn.createStatement()) {
             String sql = renderActualSql("CREATE TABLE IF NOT EXISTS casbin_rule(id int NOT NULL PRIMARY KEY auto_increment, ptype VARCHAR(100) NOT NULL, v0 VARCHAR(100), v1 VARCHAR(100), v2 VARCHAR(100), v3 VARCHAR(100), v4 VARCHAR(100), v5 VARCHAR(100))");
